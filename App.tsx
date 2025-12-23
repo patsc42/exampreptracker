@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -13,7 +12,11 @@ import {
   Sparkles,
   Trophy,
   BookOpen,
-  CalendarDays
+  CalendarDays,
+  AlertTriangle,
+  ExternalLink,
+  ShieldAlert,
+  Key
 } from 'lucide-react';
 import { StudyTask, ViewType, StudyPlan } from './types';
 import Dashboard from './components/Dashboard';
@@ -21,10 +24,23 @@ import TaskTracker from './components/TaskTracker';
 import Stats from './components/Stats';
 import PlanUploader from './components/PlanUploader';
 
+// Fix: Define AIStudio interface to resolve "Subsequent property declarations must have the same type" error
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface Window {
+    aistudio?: AIStudio;
+  }
+}
+
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [tasks, setTasks] = useState<StudyTask[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [apiKeyReady, setApiKeyReady] = useState(!!process.env.API_KEY);
 
   // Load state from localStorage
   useEffect(() => {
@@ -38,6 +54,28 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('cambridge-tasks', JSON.stringify(tasks));
   }, [tasks]);
+
+  const checkKey = async () => {
+    if (process.env.API_KEY) {
+      setApiKeyReady(true);
+      return;
+    }
+    if (window.aistudio) {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      setApiKeyReady(hasKey);
+    }
+  };
+
+  useEffect(() => {
+    checkKey();
+  }, []);
+
+  const handleOpenKeySelector = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      setApiKeyReady(true);
+    }
+  };
 
   const daysRemaining = useMemo(() => {
     const examDate = new Date('2026-03-01');
@@ -86,6 +124,60 @@ const App: React.FC = () => {
       <span className="font-medium">{label}</span>
     </button>
   );
+
+  // API Key Gate UI
+  if (!apiKeyReady) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-[40px] shadow-2xl shadow-slate-200 border border-slate-100 p-10 text-center space-y-6 animate-in fade-in zoom-in duration-500">
+          <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center text-amber-500 mx-auto mb-2">
+            <Key size={40} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900">Connection Required</h1>
+            <p className="text-slate-500 mt-2 leading-relaxed">
+              To use AI features like study plan extraction, the app needs a Gemini API Key.
+            </p>
+          </div>
+          
+          {window.aistudio ? (
+            <button 
+              onClick={handleOpenKeySelector}
+              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-95 flex items-center justify-center space-x-2"
+            >
+              <Sparkles size={20} />
+              <span>Connect Gemini API</span>
+            </button>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 text-left">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Vercel Setup Guide</p>
+                <ol className="text-sm text-slate-600 space-y-3 font-medium">
+                  <li className="flex items-start"><span className="w-5 h-5 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-[10px] mr-2 shrink-0 mt-0.5">1</span> Open project settings in Vercel</li>
+                  <li className="flex items-start"><span className="w-5 h-5 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-[10px] mr-2 shrink-0 mt-0.5">2</span> Add <code className="bg-white px-1 py-0.5 border border-slate-200 rounded text-indigo-600">API_KEY</code> variable</li>
+                  <li className="flex items-start"><span className="w-5 h-5 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-[10px] mr-2 shrink-0 mt-0.5">3</span> Paste your key & Redeploy</li>
+                </ol>
+              </div>
+              <a 
+                href="https://ai.google.dev/gemini-api/docs/billing" 
+                target="_blank" 
+                className="inline-flex items-center text-xs text-indigo-600 font-bold hover:underline"
+              >
+                Get a Paid API Key <ExternalLink size={12} className="ml-1" />
+              </a>
+            </div>
+          )}
+          
+          <button 
+            onClick={() => setApiKeyReady(true)}
+            className="text-slate-400 text-xs hover:text-slate-600 transition-colors underline"
+          >
+            Continue without AI features
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden">

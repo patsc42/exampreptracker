@@ -1,18 +1,11 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyTask } from "../types";
 
-const getAIClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY is not defined in the environment variables.");
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
+// Fix: Gemini API initialization should happen right before use and use process.env.API_KEY directly
 export const parseStudyPlan = async (input: string | { data: string, mimeType: string }): Promise<Partial<StudyTask>[]> => {
-  const ai = getAIClient();
-  const model = "gemini-3-flash-preview";
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Using gemini-3-pro-preview for complex reasoning tasks like syllabus extraction
+  const model = "gemini-3-pro-preview";
   
   const systemPrompt = `
     You are an expert Cambridge IGCSE education consultant. 
@@ -24,15 +17,16 @@ export const parseStudyPlan = async (input: string | { data: string, mimeType: s
     - priority: Based on context, assign 'low', 'medium', or 'high'
     
     If no dates are provided, distribute the tasks starting from today over the next 30 days.
+    Output MUST be valid JSON.
   `;
 
   let contents: any;
   if (typeof input === 'string') {
-    contents = input;
+    contents = { parts: [{ text: input }] };
   } else {
     contents = {
       parts: [
-        { text: "Extract the study plan from this image." },
+        { text: "Extract the study plan from this image into structured tasks." },
         { inlineData: input }
       ]
     };
@@ -56,7 +50,8 @@ export const parseStudyPlan = async (input: string | { data: string, mimeType: s
           },
           required: ["subject", "topic", "dueDate", "priority"]
         }
-      }
+      },
+      thinkingConfig: { thinkingBudget: 2000 }
     }
   });
 
@@ -65,8 +60,8 @@ export const parseStudyPlan = async (input: string | { data: string, mimeType: s
 
 export const getStudyMotivation = async (tasks: StudyTask[]): Promise<string> => {
   try {
-    const ai = getAIClient();
-    const model = "gemini-3-flash-preview";
+    // Fix: Use direct API key access and create instance right before making an API call
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const completed = tasks.filter(t => t.isCompleted).length;
     const total = tasks.length;
     
@@ -78,7 +73,7 @@ export const getStudyMotivation = async (tasks: StudyTask[]): Promise<string> =>
     `;
 
     const response = await ai.models.generateContent({
-      model,
+      model: 'gemini-3-flash-preview',
       contents: prompt
     });
 
