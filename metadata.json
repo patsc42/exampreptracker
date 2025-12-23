@@ -1,0 +1,7 @@
+{
+  "name": "ExamPrepTracker",
+  "description": "A modern exam preparation companion for Cambridge Grade 9 students to track study plans, visualize progress, and get AI-powered study insights.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
