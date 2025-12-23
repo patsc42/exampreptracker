@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   CheckSquare, 
@@ -12,7 +12,8 @@ import {
   X,
   Sparkles,
   Trophy,
-  BookOpen
+  BookOpen,
+  CalendarDays
 } from 'lucide-react';
 import { StudyTask, ViewType, StudyPlan } from './types';
 import Dashboard from './components/Dashboard';
@@ -37,6 +38,14 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('cambridge-tasks', JSON.stringify(tasks));
   }, [tasks]);
+
+  const daysRemaining = useMemo(() => {
+    const examDate = new Date('2026-03-01');
+    const today = new Date();
+    const diffTime = examDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  }, []);
 
   const toggleTask = (id: string) => {
     setTasks(prev => prev.map(t => {
@@ -113,19 +122,28 @@ const App: React.FC = () => {
             <NavItem view="upload" icon={<Upload size={20} />} label="Import Plan" />
           </nav>
 
-          <div className="mt-auto p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-            <div className="flex items-center space-x-2 text-indigo-600 mb-2">
-              <Sparkles size={16} />
-              <span className="text-xs font-bold uppercase tracking-wider">Exam Countdown</span>
+          <div className="mt-auto p-5 bg-indigo-50 rounded-3xl border border-indigo-100 relative overflow-hidden group">
+            <div className="absolute -right-2 -top-2 opacity-5 text-indigo-900 group-hover:rotate-12 transition-transform duration-500">
+              <CalendarDays size={80} />
             </div>
-            <p className="text-sm text-indigo-900 font-medium">March 2026 Session</p>
-            <div className="mt-2 h-2 w-full bg-white rounded-full overflow-hidden">
+            <div className="flex items-center space-x-2 text-indigo-600 mb-3">
+              <Sparkles size={16} />
+              <span className="text-[10px] font-bold uppercase tracking-widest">Target: March 2026</span>
+            </div>
+            <div className="mb-4">
+              <div className="text-3xl font-black text-indigo-950 leading-none">{daysRemaining}</div>
+              <div className="text-xs font-semibold text-indigo-600 mt-1 uppercase tracking-tighter">Days until Exams</div>
+            </div>
+            <div className="h-1.5 w-full bg-white/60 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-indigo-500 transition-all duration-1000" 
+                className="h-full bg-indigo-600 transition-all duration-1000" 
                 style={{ width: `${preparationProgress}%` }} 
               />
             </div>
-            <p className="text-[10px] text-indigo-600 mt-1 font-medium">Progress: {preparationProgress}% Preparation</p>
+            <p className="text-[10px] text-indigo-600 mt-2 font-bold flex justify-between">
+              <span>Progress</span>
+              <span>{preparationProgress}%</span>
+            </p>
           </div>
         </div>
       </aside>
@@ -146,7 +164,7 @@ const App: React.FC = () => {
               <Bell size={20} />
               <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
-            <div className="h-8 w-8 bg-gradient-to-br from-indigo-400 to-violet-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white text-xs font-bold">
+            <div className="h-8 w-8 bg-gradient-to-br from-indigo-400 to-violet-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white text-xs font-bold ring-2 ring-indigo-50 ring-offset-2">
               K
             </div>
           </div>
@@ -175,7 +193,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Mobile Nav Bar */}
-        <nav className="lg:hidden h-16 bg-white border-t border-slate-200 flex items-center justify-around px-2 sticky bottom-0 z-30">
+        <nav className="lg:hidden h-16 bg-white border-t border-slate-200 flex items-center justify-around px-2 sticky bottom-0 z-30 shadow-lg">
           <button 
             onClick={() => setActiveView('dashboard')}
             className={`p-2 rounded-lg flex flex-col items-center space-y-1 ${activeView === 'dashboard' ? 'text-indigo-600' : 'text-slate-400'}`}

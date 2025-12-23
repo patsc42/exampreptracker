@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Upload, FileText, Image as ImageIcon, Loader2, CheckCircle, Sparkles, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Image as ImageIcon, Loader2, CheckCircle, Sparkles, AlertCircle, Info } from 'lucide-react';
 import { parseStudyPlan } from '../services/geminiService';
 import { StudyTask } from '../types';
 
@@ -10,9 +10,24 @@ interface Props {
 
 const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; sub?: string } | null>(null);
   const [success, setSuccess] = useState(false);
   const [pastedText, setPastedText] = useState('');
+
+  const handleError = (err: any) => {
+    console.error("PlanUploader Error:", err);
+    if (!process.env.API_KEY) {
+      setError({ 
+        message: "API Key Not Configured", 
+        sub: "You need to add the API_KEY environment variable in your Vercel project settings." 
+      });
+    } else {
+      setError({ 
+        message: "AI Processing Failed", 
+        sub: "The model had trouble reading that. Try simplifying the text format." 
+      });
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -23,17 +38,21 @@ const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
     try {
       const reader = new FileReader();
       reader.onload = async () => {
-        const base64 = (reader.result as string).split(',')[1];
-        const result = await parseStudyPlan({ 
-          data: base64, 
-          mimeType: file.type 
-        });
-        
-        processResults(result);
+        try {
+          const base64 = (reader.result as string).split(',')[1];
+          const result = await parseStudyPlan({ 
+            data: base64, 
+            mimeType: file.type 
+          });
+          processResults(result);
+        } catch (err) {
+          handleError(err);
+          setLoading(false);
+        }
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      setError("Failed to parse the file. Please try again or paste text manually.");
+      handleError(err);
       setLoading(false);
     }
   };
@@ -46,7 +65,7 @@ const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
       const result = await parseStudyPlan(pastedText);
       processResults(result);
     } catch (err) {
-      setError("AI was unable to interpret the text. Check formatting.");
+      handleError(err);
       setLoading(false);
     }
   };
@@ -58,14 +77,14 @@ const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
       topic: t.topic || 'New Topic',
       dueDate: t.dueDate || new Date().toISOString(),
       isCompleted: false,
-      priority: t.priority as any || 'medium'
+      priority: (t.priority?.toLowerCase() as any) || 'medium'
     }));
     
     if (formatted.length > 0) {
       onAddTasks(formatted);
       setSuccess(true);
     } else {
-      setError("No tasks could be identified in the input.");
+      setError({ message: "No tasks identified", sub: "The AI couldn't find a clear study plan in that input." });
     }
     setLoading(false);
   };
@@ -81,7 +100,7 @@ const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
       </header>
 
       {success ? (
-        <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-3xl text-center space-y-4">
+        <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-3xl text-center space-y-4 shadow-sm">
           <div className="inline-flex items-center justify-center p-4 bg-emerald-100 text-emerald-600 rounded-full">
             <CheckCircle size={48} />
           </div>
@@ -89,7 +108,7 @@ const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
           <p className="text-emerald-700">Your study plan has been successfully imported and added to your tracker.</p>
           <button 
             onClick={() => setSuccess(false)}
-            className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-semibold"
+            className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-semibold shadow-md hover:bg-emerald-700 transition-colors"
           >
             Import Another
           </button>
@@ -117,7 +136,7 @@ const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
                 </div>
               )}
               <p className="text-lg font-bold text-slate-700">{loading ? "Analyzing Plan..." : "Upload Photo or PDF"}</p>
-              <p className="text-slate-400 text-sm mt-1">Syllabus snapshots, handwritten schedules, or exam timetables</p>
+              <p className="text-slate-400 text-sm mt-1">Handwritten schedules, syllabus lists, or timetables</p>
             </div>
           </div>
 
@@ -128,7 +147,7 @@ const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
           </div>
 
           {/* Text Area */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm focus-within:border-indigo-400 transition-colors">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm focus-within:border-indigo-400 transition-all">
             <textarea 
               placeholder="Example: &#10;Physics - Chapter 4 Waves - Tuesday&#10;Maths - Differentiation - Next Friday..." 
               className="w-full h-40 resize-none outline-none text-slate-900 bg-white caret-indigo-600 text-lg leading-relaxed placeholder:text-slate-300"
@@ -137,11 +156,14 @@ const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
               disabled={loading}
               spellCheck={false}
             />
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex items-center text-slate-400 text-xs italic">
+                <Info size={14} className="mr-1" /> AI will structure this into tasks
+              </div>
               <button 
                 onClick={handleTextParse}
                 disabled={loading || !pastedText.trim()}
-                className="flex items-center space-x-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold disabled:opacity-50 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                className="flex items-center space-x-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold disabled:opacity-50 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95"
               >
                 {loading ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
                 <span>Generate with AI</span>
@@ -150,39 +172,23 @@ const PlanUploader: React.FC<Props> = ({ onAddTasks }) => {
           </div>
 
           {error && (
-            <div className="flex items-center space-x-2 text-rose-600 bg-rose-50 p-4 rounded-2xl border border-rose-100">
-              <AlertCircle size={20} />
-              <p className="text-sm font-medium">{error}</p>
+            <div className="flex items-start space-x-3 text-rose-600 bg-rose-50 p-5 rounded-3xl border border-rose-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+              <AlertCircle size={24} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-bold text-sm">{error.message}</p>
+                {error.sub && <p className="text-xs text-rose-500 mt-1 leading-relaxed">{error.sub}</p>}
+                {!process.env.API_KEY && (
+                  <div className="mt-3 p-3 bg-white/50 rounded-xl text-[10px] font-mono text-rose-900 break-all border border-rose-200/50">
+                    Missing 'API_KEY' in Environment Variables
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       )}
-
-      {/* Benefits Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-        <FeatureItem 
-          icon={<ImageIcon className="text-indigo-500" />} 
-          title="Handwriting Support" 
-          desc="Take a photo of your desk diary and our AI will digitize it instantly."
-        />
-        <FeatureItem 
-          icon={<FileText className="text-indigo-500" />} 
-          title="Intelligent Dates" 
-          desc="AI automatically maps chapters to dates based on your exam window."
-        />
-      </div>
     </div>
   );
 };
-
-const FeatureItem: React.FC<{ icon: React.ReactNode; title: string; desc: string }> = ({ icon, title, desc }) => (
-  <div className="flex items-start space-x-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-    <div className="mt-1">{icon}</div>
-    <div>
-      <h4 className="font-bold text-slate-800 text-sm">{title}</h4>
-      <p className="text-slate-500 text-xs leading-relaxed">{desc}</p>
-    </div>
-  </div>
-);
 
 export default PlanUploader;

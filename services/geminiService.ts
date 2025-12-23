@@ -2,9 +2,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyTask } from "../types";
 
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API_KEY is not defined in the environment variables.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
 export const parseStudyPlan = async (input: string | { data: string, mimeType: string }): Promise<Partial<StudyTask>[]> => {
-  // Always create a new instance right before the call to ensure up-to-date API key
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = getAIClient();
   const model = "gemini-3-flash-preview";
   
   const systemPrompt = `
@@ -57,22 +64,26 @@ export const parseStudyPlan = async (input: string | { data: string, mimeType: s
 };
 
 export const getStudyMotivation = async (tasks: StudyTask[]): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-  const model = "gemini-3-flash-preview";
-  const completed = tasks.filter(t => t.isCompleted).length;
-  const total = tasks.length;
-  
-  const prompt = `
-    The student's name is Kyra.
-    Current Progress: ${completed}/${total} tasks completed for Cambridge Grade 9 exams.
-    Provide a short, 2-sentence highly motivational tip or encouraging message.
-    Keep it modern, friendly, and specific to the stress of IGCSE preparation.
-  `;
+  try {
+    const ai = getAIClient();
+    const model = "gemini-3-flash-preview";
+    const completed = tasks.filter(t => t.isCompleted).length;
+    const total = tasks.length;
+    
+    const prompt = `
+      The student's name is Kyra.
+      Current Progress: ${completed}/${total} tasks completed for Cambridge Grade 9 exams in March 2026.
+      Provide a short, 2-sentence highly motivational tip or encouraging message.
+      Keep it modern, friendly, and specific to the stress of IGCSE preparation.
+    `;
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt
-  });
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt
+    });
 
-  return response.text || "Keep pushing! Your hard work is paving the way to success.";
+    return response.text || "Keep pushing! Your hard work is paving the way to success.";
+  } catch (e) {
+    return "Every session brings you closer to your goal. Keep focused, Kyra!";
+  }
 };
