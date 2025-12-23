@@ -1,11 +1,14 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyTask } from "../types";
 
-// Fix: Gemini API initialization should happen right before use and use process.env.API_KEY directly
 export const parseStudyPlan = async (input: string | { data: string, mimeType: string }): Promise<Partial<StudyTask>[]> => {
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY_MISSING");
+  }
+
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Using gemini-3-pro-preview for complex reasoning tasks like syllabus extraction
-  const model = "gemini-3-pro-preview";
+  const model = "gemini-3-flash-preview";
   
   const systemPrompt = `
     You are an expert Cambridge IGCSE education consultant. 
@@ -13,11 +16,10 @@ export const parseStudyPlan = async (input: string | { data: string, mimeType: s
     Each task must have:
     - subject: The IGCSE subject (e.g., Mathematics, Physics, English Literature)
     - topic: Specific chapter or topic
-    - dueDate: Estimated or provided date in YYYY-MM-DD format
-    - priority: Based on context, assign 'low', 'medium', or 'high'
+    - dueDate: Date in YYYY-MM-DD format
+    - priority: 'low', 'medium', or 'high'
     
-    If no dates are provided, distribute the tasks starting from today over the next 30 days.
-    Output MUST be valid JSON.
+    If no dates are provided, distribute tasks over the next 30 days.
   `;
 
   let contents: any;
@@ -26,7 +28,7 @@ export const parseStudyPlan = async (input: string | { data: string, mimeType: s
   } else {
     contents = {
       parts: [
-        { text: "Extract the study plan from this image into structured tasks." },
+        { text: "Extract the study plan from this image." },
         { inlineData: input }
       ]
     };
@@ -50,8 +52,7 @@ export const parseStudyPlan = async (input: string | { data: string, mimeType: s
           },
           required: ["subject", "topic", "dueDate", "priority"]
         }
-      },
-      thinkingConfig: { thinkingBudget: 2000 }
+      }
     }
   });
 
@@ -59,17 +60,17 @@ export const parseStudyPlan = async (input: string | { data: string, mimeType: s
 };
 
 export const getStudyMotivation = async (tasks: StudyTask[]): Promise<string> => {
+  if (!process.env.API_KEY) return "Set up your API Key on Vercel to get AI tips!";
+
   try {
-    // Fix: Use direct API key access and create instance right before making an API call
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const completed = tasks.filter(t => t.isCompleted).length;
     const total = tasks.length;
     
     const prompt = `
-      The student's name is Kyra.
-      Current Progress: ${completed}/${total} tasks completed for Cambridge Grade 9 exams in March 2026.
-      Provide a short, 2-sentence highly motivational tip or encouraging message.
-      Keep it modern, friendly, and specific to the stress of IGCSE preparation.
+      Kyra is preparing for Cambridge IGCSE March 2026.
+      Progress: ${completed}/${total} tasks done.
+      Give her one short, punchy sentence of motivation.
     `;
 
     const response = await ai.models.generateContent({
@@ -77,8 +78,8 @@ export const getStudyMotivation = async (tasks: StudyTask[]): Promise<string> =>
       contents: prompt
     });
 
-    return response.text || "Keep pushing! Your hard work is paving the way to success.";
+    return response.text || "Every small step counts towards your goal.";
   } catch (e) {
-    return "Every session brings you closer to your goal. Keep focused, Kyra!";
+    return "Focus on the progress you've made today, Kyra!";
   }
 };
