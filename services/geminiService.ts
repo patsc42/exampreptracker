@@ -27,11 +27,11 @@ export const generateWeeklyPlan = async (
   input: string | { data: string, mimeType: string },
   settings: StudySettings
 ): Promise<StudyTask[]> => {
-  if (!process.env.API_KEY) {
+  if (!apiKey) {
     throw new Error("API_KEY_MISSING");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   const model = "gemini-3-pro-preview";
   
   const systemPrompt = `
