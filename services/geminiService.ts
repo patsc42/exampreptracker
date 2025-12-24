@@ -3,13 +3,12 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { StudyTask, StudySettings, SubjectType } from "../types";
 
 // Added getStudyMotivation exported member to resolve import error in Dashboard
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 export const getStudyMotivation = async (tasks: StudyTask[]): Promise<string> => {
-  if (!apiKey) {
+  if (!process.env.API_KEY) {
     return "Your journey to 9 A*s starts with today's tasks.";
   }
 
-  const ai = new GoogleGenAI({apiKey});
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const completed = tasks.filter(t => t.isCompleted).length;
   const total = tasks.length;
 
@@ -28,11 +27,11 @@ export const generateWeeklyPlan = async (
   input: string | { data: string, mimeType: string },
   settings: StudySettings
 ): Promise<StudyTask[]> => {
-  if (!apiKey) {
+  if (!process.env.API_KEY) {
     throw new Error("API_KEY_MISSING");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-pro-preview";
   
   const systemPrompt = `
