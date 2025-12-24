@@ -1,29 +1,56 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { StudyTask } from "../types";
+import { StudyTask, StudySettings, SubjectType } from "../types";
 
-export const parseStudyPlan = async (input: string | { data: string, mimeType: string }): Promise<Partial<StudyTask>[]> => {
+// Added getStudyMotivation exported member to resolve import error in Dashboard
+export const getStudyMotivation = async (tasks: StudyTask[]): Promise<string> => {
+  if (!process.env.API_KEY) {
+    return "Your journey to 9 A*s starts with today's tasks.";
+  }
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const completed = tasks.filter(t => t.isCompleted).length;
+  const total = tasks.length;
 
-  if (!apiKey) {
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Based on my progress (${completed}/${total} tasks done), give me a short (max 15 words) motivational boost for my Cambridge IGCSEs. I want to get 9 A*s.`,
+    config: {
+      systemInstruction: "You are an encouraging academic mentor for elite students."
+    }
+  });
+
+  return response.text || "Every minute of study is a step closer to those 9 A*s.";
+};
+
+export const generateWeeklyPlan = async (
+  input: string | { data: string, mimeType: string },
+  settings: StudySettings
+): Promise<StudyTask[]> => {
+  if (!process.env.API_KEY) {
     throw new Error("API_KEY_MISSING");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  
-  const model = "gemini-3-flash-preview";
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const model = "gemini-3-pro-preview";
   
   const systemPrompt = `
-    You are an expert Cambridge IGCSE education consultant. 
-    Analyze the provided study plan (text or image) and extract it into a structured JSON list of study tasks.
-    Each task must have:
-    - subject: The IGCSE subject (e.g., Mathematics, Physics, English Literature)
-    - topic: Specific chapter or topic
-    - dueDate: Date in YYYY-MM-DD format
-    - priority: 'low', 'medium', or 'high'
+    You are an expert Cambridge IGCSE Scheduler. 
+    Create a highly detailed study plan based on the provided syllabus and user constraints.
     
-    If no dates are provided, distribute tasks over the next 30 days.
+    CONSTRAINTS:
+    - Completion Window: ${settings.completionDays} days.
+    - Intensity: ${settings.hoursPerDay} hours/day.
+    - Variety: ${settings.subjectsPerDay} subjects/day.
+    - Study Days: ${settings.daysPerWeek} days per week.
+    - Importance: ${JSON.stringify(settings.subjectImportance)} (higher means more time/focus).
+    
+    OUTPUT REQUIREMENTS:
+    - Return a JSON array of tasks.
+    - Each task must have: subject, topic, week (starting from 1), day (0 for Monday, 6 for Sunday), duration (hours), and priority ('low', 'medium', or 'high').
+    - Distribute topics logically (basics before advanced).
+    - Ensure the total subjects per day does not exceed ${settings.subjectsPerDay}.
+    - Subjects allowed: Math, Physics, Chemistry, Economics, Biology, English, Spanish, Computer Science.
   `;
 
   let contents: any;
@@ -32,7 +59,7 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   } else {
     contents = {
       parts: [
-        { text: "Extract the study plan from this image." },
+        { text: "Extract and schedule this syllabus based on my settings." },
         { inlineData: input }
       ]
     };
@@ -51,39 +78,31 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
           properties: {
             subject: { type: Type.STRING },
             topic: { type: Type.STRING },
-            dueDate: { type: Type.STRING },
-            priority: { type: Type.STRING }
+            week: { type: Type.INTEGER },
+            day: { type: Type.INTEGER },
+            duration: { type: Type.NUMBER },
+            priority: { type: Type.STRING, description: "One of: 'low', 'medium', 'high'" }
           },
-          required: ["subject", "topic", "dueDate", "priority"]
+          required: ["subject", "topic", "week", "day", "priority"]
         }
-      }
+      },
+      thinkingConfig: { thinkingBudget: 2000 }
     }
   });
 
-  return JSON.parse(response.text || "[]");
-};
+  const rawTasks = JSON.parse(response.text || "[]");
+  const startDate = new Date(settings.startDate);
 
-export const getStudyMotivation = async (tasks: StudyTask[]): Promise<string> => {
-  if (!process.env.API_KEY) return "Set up your API Key on Vercel to get AI tips!";
-
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const completed = tasks.filter(t => t.isCompleted).length;
-    const total = tasks.length;
+  // Enrichment logic to calculate dueDate based on settings
+  return rawTasks.map((t: any, idx: number) => {
+    const daysOffset = (t.week - 1) * 7 + t.day;
+    const taskDate = new Date(startDate.getTime() + daysOffset * 24 * 60 * 60 * 1000);
     
-    const prompt = `
-      Kyra is preparing for Cambridge IGCSE March 2026.
-      Progress: ${completed}/${total} tasks done.
-      Give her one short, punchy sentence of motivation.
-    `;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt
-    });
-
-    return response.text || "Every small step counts towards your goal.";
-  } catch (e) {
-    return "Focus on the progress you've made today, Kyra!";
-  }
+    return {
+      ...t,
+      id: `task-${Date.now()}-${idx}`,
+      isCompleted: false,
+      dueDate: taskDate.toISOString().split('T')[0]
+    };
+  });
 };

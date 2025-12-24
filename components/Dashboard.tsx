@@ -32,13 +32,16 @@ const Dashboard: React.FC<Props> = ({ tasks, onToggle, onNavigate }) => {
   }, [tasks.length]);
 
   const streak = useMemo(() => {
-    const completedDates = tasks
+    // Explicitly type completedDates as string[] to ensure correct inference later
+    const completedDates: string[] = tasks
       .filter(t => t.isCompleted && t.completedAt)
       .map(t => new Date(t.completedAt!).toDateString());
     
-    const uniqueDates = Array.from(new Set(completedDates));
+    // Explicitly type uniqueDates as string[] to fix "unknown" type error in the subsequent map
+    const uniqueDates: string[] = Array.from(new Set(completedDates));
     if (uniqueDates.length === 0) return 0;
 
+    // Fixed the error where d was inferred as unknown by ensuring uniqueDates is string[]
     const sortedDates = uniqueDates.map(d => new Date(d).getTime()).sort((a, b) => b - a);
     
     const today = new Date().toDateString();
